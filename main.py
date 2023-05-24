@@ -23,6 +23,9 @@ HEALTH_BOOSTER = pygame.image.load(os.path.join("assets", "health.png"))
 # Load the coin image
 COIN = pygame.image.load(os.path.join("assets", "coin.png"))
 
+# Load the power booster image
+POWERUP = pygame.image.load(os.path.join("assets", "power.png"))
+
 # Player player
 YELLOW_SPACE_SHIP = pygame.image.load(os.path.join("assets", "player.png"))
 
@@ -180,6 +183,45 @@ class Coin:
 
         Args:
             vel (int): The velocity of the coin's movement.
+        """
+        self.y += vel
+
+
+class PowerUp:
+    def __init__(self, x, y):
+        """
+        Initialize a Power-Up object.
+
+        Args:
+            x (int): The x-coordinate of the power-up's position.
+            y (int): The y-coordinate of the power-up's position.
+
+        Attributes:
+            x (int): The x-coordinate of the power-up's current position.
+            y (int): The y-coordinate of the power-up's current position.
+            img (Surface): The image representing the power-up.
+            mask (Mask): The mask representing the power-up's image for collision detection.
+        """
+        self.x = x
+        self.y = y
+        self.img = POWERUP
+        self.mask = pygame.mask.from_surface(self.img)
+
+    def draw(self, window):
+        """
+        Draw the power-up on the game window.
+
+        Args:
+            window (Surface): The game window surface to draw on.
+        """
+        window.blit(self.img, (self.x, self.y))
+
+    def move(self, vel):
+        """
+        Move the power-up vertically based on the given velocity.
+
+        Args:
+            vel (int): The velocity of the power-up's movement.
         """
         self.y += vel
 
@@ -424,6 +466,16 @@ class Enemy(Ship):
 
 
 def collide(obj1, obj2):
+    """
+    Check if two objects collide with each other.
+
+    Args:
+        obj1: The first object.
+        obj2: The second object.
+
+    Returns:
+        bool: True if the objects collide, False otherwise.
+    """
     offset_x = obj2.x - obj1.x
     offset_y = obj2.y - obj1.y
     return obj1.mask.overlap(obj2.mask, (offset_x, offset_y)) != None
@@ -435,7 +487,7 @@ def main():
     level = 0
     score = 0
     lives = 5
-    main_font = pygame.font.SysFont("comicsans", 50)
+    main_font = pygame.font.SysFont("comicsans", 20)
     lost_font = pygame.font.SysFont("comicsans", 60)
 
     enemies = []
@@ -459,16 +511,44 @@ def main():
     coins_vel = 1
     coin_score = 0
 
+    powers = []
+    power_vel = 1
+
+    enemy_laser_vel = 5
+
     def redraw_window():
+        """
+        Redraws the game window with updated game elements, scores, and messages.
+
+        This function updates the game window with the current state of the game. It draws the background,
+        player, enemies, boosters, coins, power-ups, and text elements such as lives, score, high score, and level.
+        If the player has lost the game, it displays a "You Lost!" message. It also checks if the current score
+        is higher than the previous high score and updates it accordingly.
+
+        Parameters:
+            None
+
+        Returns:
+            None
+        """
+        file_path = "high_score.txt"
+        with open(file_path, "r") as file:
+            highScore = file.read()
         WIN.blit(BG, (0, 0))
         # draw text
         lives_label = main_font.render(f"Lives: {lives}", 1, (255, 255, 255))
         scores = main_font.render(f"Score: {score}", 1, (255, 255, 255))
+        high_score = main_font.render(f"High Score: {highScore}", 1, (255, 255, 255))
         level_label = main_font.render(f"Level: {level}", 1, (255, 255, 255))
 
         WIN.blit(lives_label, (10, 10))
         WIN.blit(level_label, (WIDTH - level_label.get_width() - 10, 10))
-        WIN.blit(scores, (WIDTH / 2 - scores.get_width() / 2, 10))
+
+        WIN.blit(
+            scores,
+            (WIDTH / 2 - scores.get_width() / 2 - high_score.get_width() / 2, 10),
+        )
+        WIN.blit(high_score, (WIDTH / 2 + high_score.get_width() / 2, 10))
 
         for enemy in enemies:
             enemy.draw(WIN)
@@ -479,11 +559,19 @@ def main():
         for coin in coins:
             coin.draw(WIN)
 
+        for power in powers:
+            power.draw(WIN)
+
         player.draw(WIN)
 
         if lost:
             lost_label = lost_font.render("You Lost!!", 1, (255, 255, 255))
             WIN.blit(lost_label, (WIDTH / 2 - lost_label.get_width() / 2, 350))
+
+            if int(highScore) < score:
+                highScore = str(score)
+                with open(file_path, "w") as file:
+                    file.write(highScore)
 
         pygame.display.update()
 
@@ -525,6 +613,13 @@ def main():
                 random.randrange(50, WIDTH - 100), random.randrange(-1500, -100)
             )
             coins.append(coin)
+
+        if len(powers) == 0:
+            # Generate a new coin
+            power = PowerUp(
+                random.randrange(50, WIDTH - 100), random.randrange(-1500, -100)
+            )
+            powers.append(power)
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -569,9 +664,19 @@ def main():
             if coin.y >= HEIGHT:
                 coins.remove(coin)
 
+        for power in powers[:]:
+            power.move(power_vel)
+            if collide(player, power):
+                laser_vel += 3
+                enemy_laser_vel += 2
+                powers.remove(power)
+
+            if power.y >= HEIGHT:
+                powers.remove(power)
+
         for enemy in enemies[:]:
             enemy.move(enemy_vel)
-            enemy.move_lasers(laser_vel, player)
+            enemy.move_lasers(enemy_laser_vel, player)
 
             if random.randrange(0, 2 * 60) == 1:
                 enemy.shoot()
@@ -588,7 +693,21 @@ def main():
 
 
 def main_menu():
-    title_font = pygame.font.SysFont("comicsans", 70)
+    """
+    Displays the main menu of the game and handles the user input to start the game.
+
+    This function displays the game's main menu on the game window. It shows a title label prompting the player
+    to press the mouse button to begin the game. It continuously checks for user input events, such as mouse clicks,
+    and when the mouse button is pressed, it starts the game by calling the `main` function.
+
+    Parameters:
+        None
+
+    Returns:
+        None
+    """
+
+    title_font = pygame.font.SysFont("comicsans", 55)
     run = True
     while run:
         WIN.blit(BG, (0, 0))
