@@ -1,4 +1,3 @@
-from typing import Any
 import pygame
 from pygame import mixer
 import os
@@ -14,6 +13,12 @@ pygame.display.set_caption("Space Shooter Tutorial")
 # Load images
 RED_SPACE_SHIP = pygame.image.load(os.path.join("assets", "ufo.png"))
 GREEN_SPACE_SHIP = pygame.image.load(os.path.join("assets", "enemy.png")) 
+
+# Load the health booster image
+HEALTH_BOOSTER = pygame.image.load(os.path.join("assets", "health.png"))
+
+# Load the coin image
+COIN = pygame.image.load(os.path.join("assets", "coin.png"))
 
 # Player player
 YELLOW_SPACE_SHIP = pygame.image.load(os.path.join("assets", "player.png"))
@@ -47,6 +52,32 @@ class Laser:
 
     def collision(self, obj):
         return collide(self, obj)
+
+class HealthBooster:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.img = HEALTH_BOOSTER
+        self.mask = pygame.mask.from_surface(self.img)
+
+    def draw(self, window):
+        window.blit(self.img, (self.x, self.y))
+
+    def move(self, vel):
+        self.y += vel
+
+class Coin:
+    def __init__(self, x, y):
+        self.x = x
+        self.y = y
+        self.img = COIN
+        self.mask = pygame.mask.from_surface(self.img)
+
+    def draw(self, window):
+        window.blit(self.img, (self.x, self.y))
+
+    def move(self, vel):
+        self.y += vel
 
 
 class Ship:
@@ -122,7 +153,7 @@ class Player(Ship):
                         if laser in self.lasers:
                             self.lasers.remove(laser)
         return self.score
-
+    
     def draw(self, window):
         super().draw(window)
         self.healthbar(window)
@@ -181,6 +212,13 @@ def main():
     lost = False
     lost_count = 0
 
+    boosters = []
+    booster_vel = 1
+
+    coins = []
+    coins_vel = 1
+    coin_score = 0
+
     def redraw_window():
         WIN.blit(BG, (0,0))
         # draw text
@@ -194,6 +232,12 @@ def main():
 
         for enemy in enemies:
             enemy.draw(WIN)
+
+        for booster in boosters:
+            booster.draw(WIN)
+
+        for coin in coins:
+            coin.draw(WIN)
 
         player.draw(WIN)
 
@@ -224,6 +268,16 @@ def main():
                 enemy = Enemy(random.randrange(50, WIDTH-100), random.randrange(-1500, -100), random.choice(["red", "green"]))
                 enemies.append(enemy)
 
+        if len(boosters) == 0:
+            # Generate a new health booster
+            booster = HealthBooster(random.randrange(50, WIDTH - 100), random.randrange(-1500, -100))
+            boosters.append(booster)
+
+        if len(coins) == 0:
+            # Generate a new coin
+            coin = Coin(random.randrange(50, WIDTH - 100), random.randrange(-1500, -100))
+            coins.append(coin)
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 quit()
@@ -240,6 +294,28 @@ def main():
         if keys[pygame.K_SPACE]:
             player.shoot()
 
+        # Check for collision between player and health boosters
+        for booster in boosters[:]:
+            booster.move(booster_vel)
+            if collide(player, booster):
+                if(player.health > 90):
+                    player.health += 0
+                else:
+                    player.health += 10
+                boosters.remove(booster)
+
+            if booster.y >= HEIGHT:
+                boosters.remove(booster)
+
+        for coin in coins[:]:
+            coin.move(coins_vel)
+            if collide(player, coin):
+                coin_score+=10
+                coins.remove(coin)
+
+            if coin.y >= HEIGHT:
+                coins.remove(coin)
+
         for enemy in enemies[:]:
             enemy.move(enemy_vel)
             enemy.move_lasers(laser_vel, player)
@@ -255,6 +331,7 @@ def main():
                 enemies.remove(enemy)
 
         score = player.move_lasers(-laser_vel, enemies)
+        score += coin_score
 
 def main_menu():
     title_font = pygame.font.SysFont("comicsans", 70)
@@ -272,4 +349,6 @@ def main_menu():
     pygame.quit()
 
 
-main_menu()
+
+if __name__ == "__main__":
+    main_menu()
