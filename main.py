@@ -668,7 +668,7 @@ def main():
             power.move(power_vel)
             if collide(player, power):
                 laser_vel += 3
-                enemy_laser_vel += 2
+                enemy_laser_vel += 0
                 powers.remove(power)
 
             if power.y >= HEIGHT:
